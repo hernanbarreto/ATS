@@ -1,0 +1,1412 @@
+<html>
+<head>
+	<title>ATS - TRENES ARGENTINOS</title>
+	<link href="favicon.ico" rel="icon" type="image/x-icon" />
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+</head>
+ <style>
+    .displaycontainer {
+	  position: absolute;
+	  top: 20px;
+	  left:310px;
+    }
+
+    .svgclase {
+	  position: absolute;
+	  top:0px;
+	  left:0px;
+    }
+
+    .graphRT_speed {
+	  position: absolute;
+	  top:0px;
+	  left:660px;
+    }
+	
+    .dataBitsclass {
+	  position: absolute;
+	  top:248px;
+	  left:5px;
+    }
+
+    .tableIDclass {
+	  position: absolute;
+	  top:966px;
+	  left:0px;
+	}
+
+	.unselectable {
+     -moz-user-select: -moz-none;
+     -khtml-user-select: none;
+     -webkit-user-select: none;
+     -ms-user-select: none;
+     user-select: none;
+	}
+
+	.gauge .domain {
+      stroke-width: 2px;
+      stroke: #fff;
+    }
+
+	.gauge .tick line {
+      stroke: #fff;
+      stroke-width: 2px;
+    }
+
+	.gauge line {
+      stroke: #fff;
+	}
+
+	.gauge .arc, .gauge .cursor {
+      opacity: 0;
+	}
+
+	.gauge .major {
+      fill: #fff;
+      font-size: 13px;
+      font-family: 'Play', verdana, sans-serif;
+      font-weight: normal;
+	}
+
+	.gauge .indicator {
+      stroke: #EE3311;
+      fill: #000;
+      stroke-width: 4px;
+	}
+
+	.segdisplay .on {
+      fill: #00FFFF;
+
+	}
+
+	.segdisplay .off {
+      fill: #00FFFF;
+      opacity: 0.15;
+	}
+	
+    .axis text {
+      font: 10px sans-serif;
+      fill: #999999;
+    }
+    .chartTitle {
+      font-size: 12px;
+      font-weight: bold;
+      text-anchor: middle; 
+      fill: #999999;
+    }
+    .axis .title {
+      font-weight: bold;
+      text-anchor: middle;
+    }
+    .axis path,
+    .axis line {
+      fill: none;
+      stroke: #999999;
+      shape-rendering: crispEdges;
+	  stroke-width: 1px;
+    }
+
+    .x.axis path {
+      fill: none;
+      stroke: #999999;
+      shape-rendering: crispEdges;
+	  stroke-width: 1px;
+    }
+	
+    .barGroup .line {
+      fill: none;
+    }
+
+    .nav .lineRealSpeed {
+      fill: none;
+      stroke: #DDDDDD;
+      stroke-width: 1px;
+    }
+    .nav .lineCompSpeed {
+      fill: none;
+      stroke: #ff0000;
+      stroke-width: 1px;
+	  stroke-dasharray: 5 5;
+    }
+    .nav .lineRegSpeed {
+      fill: none;
+      stroke: #ffff00;
+      stroke-width: 1px;
+    }
+    .nav .lineFbSpeed {
+      fill: none;
+      stroke: #ff00ff;
+      stroke-width: 1px;
+	  stroke-dasharray: 5 5;
+    }
+    .nav .lineMaxSpeed {
+      fill: none;
+      stroke: #40E000;
+      stroke-width: 1px;
+    }
+
+    .nav .lineAcel1 {
+      fill: none;
+      stroke: #EEEEEE;
+      stroke-width: 1px;
+    }
+	
+    .nav .lineAcel2 {
+      fill: none;
+      stroke: #00FFFF;
+      stroke-width: 1px;
+    }
+
+    .viewport {
+      stroke: grey;
+      fill: blue;
+      fill-opacity: 0.3;
+    }
+    .viewport .extent {
+      fill: gray;
+    }
+		
+  </style>
+  <script src="d3/d3.v3.min.js"></script>
+  <script type="text/javascript" src="js/iopctrl.js"></script> 
+  <script type="text/css" src="css/bootstrap.min.css"></script>
+  <script type="text/javascript" src="js/realTime.js"></script>
+  <script type="text/javascript" src="js/datosBits.js"></script>
+  <script type="text/javascript" src="js/display.js"></script>
+  <script type="text/javascript" src="js/table.js"></script>
+  
+  <body style="background: #222">
+  <div id="svg-container"  class ="svgclase"></div>
+  <div id="container" class="displaycontainer"></div>
+  <div id="graph-rt-speed" class="graphRT_speed"></div>
+  <div id="dataBitsID" class="dataBitsclass"></div>
+  <div id="tableID" class="tableIDclass"></div>		
+
+	<script>
+  	var offsetMinMax = 0.2;	
+  	var gaugeValue = -1;
+	var speedometerSize = 350;
+	var svg;
+	
+	var minValueSpeed = 0;
+	var maxValueSpeed = 130;
+
+	var minValueAcel = -20;
+	var maxValueAcel = 20;
+
+	var minValueBit = 0;
+	var maxValueBit = 1;
+	
+	var gauge;
+	var segDisplay;
+	var tasaATS = 100;
+	var muestreo = 1/2.5;
+	var pulsos = tasaATS/muestreo;
+	var workerConsultaPhp = new Worker("js/consultaPhp.js");
+	var tiempo;
+	var jlastId = 0;
+	var jlastIdant = 0;
+	var datosinConexion = "ffffffffffffff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	var respTR;
+	var valuesTR;
+	var colMysql = 4;
+	var OS;
+	var horaANT = 0;
+	var horaANTsec = 0;
+
+	var bitEVant = 1, bitFBant = 1, bitTCant = 0, viaPlayaAnt = -1;
+						   
+	var colorText = '#999999';
+	var textArray = [
+		 	 		   	  {"name":'Fecha', "color": 'none', "color_text": colorText},
+		 	 		   	  {"name":'Hora', "color": 'none', "color_text": colorText},
+						  {"name":'Fecha ATS', "color": 'none', "color_text": colorText},
+						  {"name":'Hora ATS', "color": 'none', "color_text": colorText},
+						  {"name":'Kilometraje', "color": 'none', "color_text": colorText},
+						  {"name":'Velocidad', "color": '#DDDDDD', "color_text": 'black'},
+						  {"name":'Vel de comparación', "color": '#ff0000', "color_text": 'white'},
+						  {"name":'Unid Registradora', "color": '#ffff00', "color_text": 'black'},
+						  {"name":'Vel freno (Vel Max)', "color": '#ff00ff', "color_text": 'white'},
+						  {"name":'Vel Max', "color": '#40E000', "color_text": 'black'},
+						  {"name":'Aceleración 1', "color": '#EEEEEE', "color_text": 'black'},
+						  {"name":'Aceleración 2', "color": '#00FFFF', "color_text": 'black'},
+						  {"name":'Diam rueda', "color": 'none', "color_text": colorText},
+						  {"name":'Versión CPU', "color": 'none', "color_text": colorText},
+						  {"name":'Versión DSP', "color": 'none', "color_text": colorText},
+						  {"name":'Código de Falla', "color": 'none', "color_text": colorText},
+						  {"name":'Código Est. Operat', "color": 'none', "color_text": colorText},
+						  {"name":'Type', "color": 'none', "color_text": colorText},
+						  {"name":'Dist compens', "color": 'none', "color_text": colorText},
+						  {"name":'Frec establecida', "color": 'none', "color_text": colorText},						   
+						  {"name":'Q establecido', "color": 'none', "color_text": colorText},
+						  {"name":'Nivel determ', "color": 'none', "color_text": colorText},						  
+						  {"name":'Velocidad TG11', "color": 'none', "color_text": colorText},						  
+						  {"name":'Velocidad TG21', "color": 'none', "color_text": colorText},						  
+						  {"name":'Vel Comp TG11AL', "color": 'none', "color_text": colorText},						  
+						  {"name":'Vel Comp TG11BA', "color": 'none', "color_text": colorText},						  
+						  {"name":'Vel Comp TG21AL', "color": 'none', "color_text": colorText},						  
+						  {"name":'Vel Comp TG21BA', "color": 'none', "color_text": colorText},						  
+						  {"name":'Línea', "color": 'none', "color_text": colorText},						  
+						  {"name":'Numero Tren', "color": 'none', "color_text": colorText},						  
+						  {"name":'Chapa', "color": 'none', "color_text": colorText},						  
+						  {"name":'Modelo', "color": 'none', "color_text": colorText},						  
+						  {"name":'Versión Firmware', "color": 'none', "color_text": colorText}						  
+					];
+		//Escribo los valores de los parámetros dentro de las celdas        
+	var textData = ['-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-'];					   
+	var bitData = [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1];
+	
+	var datosParaChart = {
+				realSpeed: -1,
+				compSpeed: -1,
+				regSpeed: -1,
+				fbSpeed: -1,
+				maxSpeed: -1,
+				Acel1: -25,
+				Acel2: -25,
+				f98: -1,
+				f82: -1,
+				f106: -1,
+				f90: -1,
+				f114: -1,
+				f122: -1,
+				f130: -1,
+				EMR: -1,
+				FBR: -1,
+				BFR: -1,
+				PCCR: -1,
+				Tracc: -1,
+				Conf: -1,
+				PosEmer: -1,
+				FrenoServ: -1,
+				time: -1,
+				clear: false
+			};
+	var dataDspl = {   light1 : 0, 
+                       light2 : 0, 
+                       light3 : 0, 
+                       light4 : 0, 
+                       light5 : 0, 
+                       light6 : 0,
+                       light7 : 0,
+                       velC : -1, 
+                       velD : -1, 
+                       velU : -1};		
+
+// create the real time chart
+var chart = realTimeChart(minValueSpeed-offsetMinMax, maxValueSpeed+offsetMinMax, minValueAcel-offsetMinMax, maxValueAcel+offsetMinMax, minValueBit-0.05, maxValueBit+0.05)
+    .border(false)
+    .width('1257')
+    .height('961')
+    .title("PARAMETROS ATS")
+    .xTitle("t")
+    .yTitleSpeed("Velocidad [km/h]")
+    .yTitleAcel("Aceleracion [km/h/s]")
+    .yTitle82("82kHz")
+    .yTitle90("90kHz")
+    .yTitle98("98kHz")
+    .yTitle106("106kHz")
+    .yTitle114("114kHz")
+    .yTitle122("122kHz")
+    .yTitle130("130kHz")
+    .yTitleEMR("EMR")
+    .yTitleFBR("FBR")
+    .yTitleBFR("BFR")
+    .yTitlePCCR("PCCR")
+    .yTitleTracc("Tracc")
+    .yTitleConf("Confirm")
+    .yTitlePosEmer("P.Emer")
+    .yTitleFrenoServ("F.Serv");
+
+// invoke the chart
+var chartDiv = d3.select("#graph-rt-speed").append("div")
+    .attr("id", "graph-rt-speed")
+    .call(chart);
+
+
+// create the real time dataBits
+var dataBits = dataBitschart()
+    .border(false)
+    .width('704')
+	.height('707')
+	.colorText(colorText)
+	.colorBorder('#222')
+	.fontSize(15)
+	.dataText(textData)
+	.dataBit(bitData);
+	
+var dataBitsDiv = d3.select("#dataBitsID").append("div")
+    .attr("id", "dataBitsID")
+    .call(dataBits);
+
+var dspl = displayChart()
+	.width('351')
+	.height('220');
+
+var dsplDiv = d3.select("#container").append("div")
+	.attr("id", "container")
+	.call(dspl);	
+
+//TABLAS
+// invoke the chart
+var dataTables = dataTableChart()
+    .border(false)
+    .rowView(5)
+    .width('1920')
+	.height('100');
+
+var tableDiv = d3.select("#tableID").append("div")
+    .attr("id", "tableID")
+	.call(dataTables);
+	
+	init ();
+	
+	function init(){
+		     OS = getOS();
+			 obtenerInfoTren();
+			 loadSpeedometer();
+			 workerConsultaPhp.postMessage(pulsos);
+	}
+
+	function obtenerInfoTren(){
+			var respuesta;
+			var valores;
+			var diferencia;
+			var paso = false;
+
+			if (window.XMLHttpRequest) {
+				// code for IE7+, Firefox, Chrome, Opera, Safari
+				var xmlhttpTR = new XMLHttpRequest();
+			} 
+			else {
+				// code for IE6, IE5
+				var xmlhttpTR = new ActiveXObject("Microsoft.XMLHTTP");
+			}
+
+			xmlhttpTR.onreadystatechange = function() {
+				  	respuesta =  this.responseText;
+					valores = respuesta.split(";");					
+					//dinamizo la posición de los trenes en tiempo real
+					if (valores.length > 1){
+						if (!paso){
+							paso = true;
+							textData[28] = valores[2];
+							textData[29] = valores[3];
+							textData[30] = valores[4];
+							textData[31] = valores[5];
+							textData[32] = valores[6];
+							
+							var arr = (valores[7] + " " + valores[0]).split(/[- :]/);
+							dataBits.dataText(textData);
+							
+							var horaAct = new Date().getTime();
+							if ( horaAct - horaANTsec > 50000){
+								diferencia = new Date(arr[0], arr[1]-1, arr[2], arr[3], arr[4], arr[5]).getTime() - horaANT;
+								horaANT =  new Date(arr[0], arr[1]-1, arr[2], arr[3], arr[4], arr[5]).getTime();
+
+								if (diferencia == 0)
+									bitData[28] = -1;
+								else
+									bitData[28] = 1;
+								
+								dataBits.dataBit(bitData);
+							}							
+							horaANTsec = new Date().getTime();
+
+						}
+				 	}
+		  	};
+			
+			xmlhttpTR.open("GET", "ats_config.php", true);
+			xmlhttpTR.send();
+
+			setTimeout(function(){ obtenerInfoTren(); }, 60000)
+		}	
+
+	function getOS() {
+			var userAgent = window.navigator.userAgent,
+				platform = window.navigator.platform,
+				macosPlatforms = ['Macintosh', 'MacIntel', 'MacPPC', 'Mac68K'],
+				windowsPlatforms = ['Win32', 'Win64', 'Windows', 'WinCE'],
+				iosPlatforms = ['iPhone', 'iPad', 'iPod'],
+				os = null;
+
+			if (macosPlatforms.indexOf(platform) !== -1) {
+				os = 'Mac OS';
+			} else if (iosPlatforms.indexOf(platform) !== -1) {
+				os = 'iOS';
+			} else if (windowsPlatforms.indexOf(platform) !== -1) {
+				os = 'Windows';
+			} else if (/Android/.test(userAgent)) {
+				os = 'Android';
+			} else if (!os && /Linux/.test(platform)) {
+				os = 'Linux';
+			}
+
+			return os;
+	}
+	function loadSpeedometer(){	   
+			var ticks = 13;
+
+			svg = d3.select("#svg-container")
+          	 	 .append("svg:svg")
+          		 .attr("width", speedometerSize)
+          		 .attr("height", speedometerSize);			
+		  
+		  	gauge = iopctrl.arcslider()
+    			  .radius(speedometerSize * 0.3)
+    			  .events(false)                   
+    			  .indicator(iopctrl.defaultGaugeIndicator);
+
+			gauge.axis().orient("in")
+    			  .normalize(true)
+    			  .ticks(ticks)
+    			  .tickSubdivide(1)
+    			  .tickSize(10, 8, 10)
+    			  .tickPadding(12)
+    			  .scale(d3.scale.linear()
+            	  .domain([minValueSpeed, maxValueSpeed])
+            	  .range([-3*Math.PI/4,3*Math.PI/4]));
+
+			segDisplay = iopctrl.segdisplay()
+        		  .width(speedometerSize * 0.2)
+        		  .digitCount(4)
+        		  .negative(false)
+        		  .decimals(1);
+
+			svg.append("g")
+    			  .attr("class", "segdisplay")
+    			  .attr("transform", "translate(" + speedometerSize * 0.325 + ","+ speedometerSize * 0.6 +")")
+    			  .call(segDisplay);
+
+			svg.append("g")
+        		  .attr("class", "gauge")
+        		  .call(gauge);
+				  
+			updateSpeedometer();
+	}
+
+ 	function updateSpeedometer(compSpeed, regSpeed, fbSpeed, maxSpeed, PCCR, fal){		
+		var colorFrenoEB = '#990000';
+		var colorFrenoFB = '#995000';
+		var vIniNORMAL;
+		var vFinNORMAL;
+		var vIniWARNING;
+		var vFinWARNING;
+		var vIniFRENO;
+		var vFinFRENO;
+		var vIniTC;
+		var vFinTC;
+		var colorFreno;
+
+			svg.selectAll(".arcMax").remove();
+
+			if ((compSpeed != -1)&&(compSpeed != undefined)){
+				// NO ESTA APAGADO
+				if (fal == "00"){
+    				// NO TIENE FALLA
+					if (compSpeed != 30){
+						// NO ESTA EN MODO MANIOBRA
+						if (maxSpeed == 70){
+							if ((regSpeed == 0) || (regSpeed == 15)){
+										vIniNORMAL = 0;
+										vFinNORMAL = regSpeed;
+										vIniWARNING = regSpeed;
+										vFinWARNING = compSpeed;
+										vIniFRENO = compSpeed;
+										vFinFRENO = maxValueSpeed;
+										colorFreno = colorFrenoEB;
+										if (PCCR == 0){
+											vIniTC = 72;
+											vFinTC = maxValueSpeed;
+										}else{
+											vIniTC = 50;
+											vFinTC = maxValueSpeed;
+										}
+							}
+							if ((regSpeed == 45) || (regSpeed == 60)){
+										vIniNORMAL = 0;
+										vFinNORMAL = regSpeed;
+										vIniWARNING = regSpeed;
+										vFinWARNING = compSpeed;
+										vIniFRENO = compSpeed;
+										vFinFRENO = maxValueSpeed;
+										colorFreno = colorFrenoFB;
+										if (PCCR == 0){
+											vIniTC = 72;
+											vFinTC = maxValueSpeed;
+										}else{
+											vIniTC = 50;
+											vFinTC = maxValueSpeed;
+										}
+							}
+							if ((regSpeed == 80) || (regSpeed == 90) || (regSpeed == 120)){
+										vIniNORMAL = 0;
+										vFinNORMAL = maxSpeed;
+										vIniWARNING = maxSpeed;
+										vFinWARNING = fbSpeed;
+										vIniFRENO = fbSpeed;
+										vFinFRENO = maxValueSpeed;
+										colorFreno = colorFrenoFB;
+										if (PCCR == 0){
+											vIniTC = 72;
+											vFinTC = maxValueSpeed;
+										}else{
+											vIniTC = 50;
+											vFinTC = maxValueSpeed;
+										}
+							}
+						}
+						if (maxSpeed == 90){
+							if ((regSpeed == 0) || (regSpeed == 15)){
+										vIniNORMAL = 0;
+										vFinNORMAL = regSpeed;
+										vIniWARNING = regSpeed;
+										vFinWARNING = compSpeed;
+										vIniFRENO = compSpeed;
+										vFinFRENO = maxValueSpeed;
+										colorFreno = colorFrenoEB;
+										if (PCCR == 0){
+											vIniTC = 95;
+											vFinTC = maxValueSpeed;
+										}else{
+											vIniTC = 70;
+											vFinTC = maxValueSpeed;
+										}
+							}
+							if ((regSpeed == 45) || (regSpeed == 60) || (regSpeed == 80) || (regSpeed == 90)){
+										vIniNORMAL = 0;
+										vFinNORMAL = regSpeed;
+										vIniWARNING = regSpeed;
+										vFinWARNING = compSpeed;
+										vIniFRENO = compSpeed;
+										vFinFRENO = maxValueSpeed;
+										colorFreno = colorFrenoFB;
+										if (PCCR == 0){
+											vIniTC = 95;
+											vFinTC = maxValueSpeed;
+										}else{
+											vIniTC = 70;
+											vFinTC = maxValueSpeed;
+										}
+							}
+							if (regSpeed == 120){
+										vIniNORMAL = 0;
+										vFinNORMAL = maxSpeed;
+										vIniWARNING = maxSpeed;
+										vFinWARNING = fbSpeed;
+										vIniFRENO = fbSpeed;
+										vFinFRENO = maxValueSpeed;
+										colorFreno = colorFrenoFB;
+										if (PCCR == 0){
+											vIniTC = 95;
+											vFinTC = maxValueSpeed;
+										}else{
+											vIniTC = 70;
+											vFinTC = maxValueSpeed;
+										}
+							}
+						}
+						if (maxSpeed == 120){
+							if ((regSpeed == 0) || (regSpeed == 15)){
+										vIniNORMAL = 0;
+										vFinNORMAL = regSpeed;
+										vIniWARNING = regSpeed;
+										vFinWARNING = compSpeed;
+										vIniFRENO = compSpeed;
+										vFinFRENO = maxValueSpeed;
+										colorFreno = colorFrenoEB;
+										if (PCCR == 0){
+											vIniTC = 125;
+											vFinTC = maxValueSpeed;
+										}else{
+											vIniTC = 90;
+											vFinTC = maxValueSpeed;
+										}
+							}
+							if ((regSpeed == 45) || (regSpeed == 60) || (regSpeed == 80) || (regSpeed == 90)){
+										vIniNORMAL = 0;
+										vFinNORMAL = regSpeed;
+										vIniWARNING = regSpeed;
+										vFinWARNING = compSpeed;
+										vIniFRENO = compSpeed;
+										vFinFRENO = maxValueSpeed;
+										colorFreno = colorFrenoFB;
+										if (PCCR == 0){
+											vIniTC = 125;
+											vFinTC = maxValueSpeed;
+										}else{
+											vIniTC = 90;
+											vFinTC = maxValueSpeed;
+										}
+							}
+							if (regSpeed == 120){
+										vIniNORMAL = 0;
+										vFinNORMAL = regSpeed;
+										vIniWARNING = regSpeed;
+										vFinWARNING = fbSpeed;
+										vIniFRENO = fbSpeed;
+										vFinFRENO = maxValueSpeed;
+										colorFreno = colorFrenoFB;
+										if (PCCR == 0){
+											vIniTC = 125;
+											vFinTC = maxValueSpeed;
+										}else{
+											vIniTC = 90;
+											vFinTC = maxValueSpeed;
+										}
+							}
+						}
+					}else{
+						// ESTA EN MODO MANIOBRA
+						vIniNORMAL = 0;
+						vFinNORMAL = 25;
+						vIniWARNING = 25;
+						vFinWARNING = compSpeed;
+						vIniFRENO = compSpeed;
+						vFinFRENO = maxValueSpeed;
+						colorFreno = colorFrenoFB;
+						if (PCCR == 0){
+							// NO ESTA ACTIVO EL CORTE DE TRACCION
+							switch (maxSpeed){
+								case 70: 
+									vIniTC = 72;
+									break;
+								case 90: 
+									vIniTC = 95;
+									break;
+								case 120: 
+									vIniTC = 125;
+									break;
+							}
+						}else{
+							// ESTA ACTIVO EL CORTE DE TRACCION
+							switch (maxSpeed){
+								case 70: 
+									vIniTC = 50;
+									break;
+								case 90: 
+									vIniTC = 70;
+									break;
+								case 120: 
+									vIniTC = 90;
+									break;
+							}
+							vFinTC = maxValueSpeed;
+						}
+					}					
+				}else{
+    				// TIENE FALLA
+					vIniNORMAL = 0;
+					vFinNORMAL = 0;
+					vIniWARNING = 0;
+					vFinWARNING = 0;
+					vIniFRENO = 0;
+					vFinFRENO = maxValueSpeed;
+					vIniTC = 0;
+					vFinTC = 0;
+					colorFreno = colorFrenoEB;
+				}					
+			}else{
+				// ESTA APAGADO
+				vIniNORMAL = -1;
+				vFinNORMAL = -1;
+				vIniWARNING = -1;
+				vFinWARNING = -1;
+				vIniFRENO = -1;
+				vFinFRENO = -1;
+				vIniTC = -1;
+				vFinTC = -1;
+
+			}	
+
+			//ARCO DE NORMAL
+
+			var arcNorm = d3.svg.arc() 
+            	.innerRadius(110) 
+            	.outerRadius(120) 
+            	.startAngle(((vIniNORMAL-(maxValueSpeed/2))/(maxValueSpeed/2))*3*Math.PI/4) 
+            	.endAngle(((vFinNORMAL-(maxValueSpeed/2))/(maxValueSpeed/2))*3*Math.PI/4);
+
+			svg.append("path") 
+				.attr('class', 'arcMax')
+    			.attr("d", arcNorm)
+				.style("fill", '#009900')
+    			.attr("transform", 'translate(155,155)');
+
+
+			//ARCO DE FRENO
+				   
+			var arcFreno = d3.svg.arc() 
+            	.innerRadius(110) 
+            	.outerRadius(120) 
+            	.startAngle(((vIniFRENO-(maxValueSpeed/2))/(maxValueSpeed/2))*3*Math.PI/4) 
+            	.endAngle(((vFinFRENO-(maxValueSpeed/2))/(maxValueSpeed/2))*3*Math.PI/4);
+
+			svg.append("path") 
+				.attr('class', 'arcMax')
+    			.attr("d", arcFreno)
+				.style("fill", colorFreno)
+    			.attr("transform", 'translate(155,155)');
+			
+			//ARCO DE WARNING
+
+			var arcWar = d3.svg.arc() 
+            	.innerRadius(110) 
+            	.outerRadius(120) 
+            	.startAngle(((vIniWARNING-(maxValueSpeed/2))/(maxValueSpeed/2))*3*Math.PI/4) 
+            	.endAngle(((vFinWARNING-(maxValueSpeed/2))/(maxValueSpeed/2))*3*Math.PI/4);
+
+			svg.append("path") 
+				.attr('class', 'arcMax')
+    			.attr("d", arcWar)
+				.style("fill", '#999900')
+    			.attr("transform", 'translate(155,155)');
+
+			//ARCO DE TRACCION
+
+			var arcTC = d3.svg.arc() 
+            	.innerRadius(125) 
+            	.outerRadius(135) 
+            	.startAngle(((vIniTC-(maxValueSpeed/2))/(maxValueSpeed/2))*3*Math.PI/4) 
+            	.endAngle(((vFinTC-(maxValueSpeed/2))/(maxValueSpeed/2))*3*Math.PI/4);
+
+			svg.append("path") 
+				.attr('class', 'arcMax')
+    			.attr("d", arcTC)
+				.style("fill", '#007799')
+    			.attr("transform", 'translate(155,155)');
+
+
+			segDisplay.value(gaugeValue);
+			gauge.value(gaugeValue);
+	}
+
+	workerConsultaPhp.onmessage = function (event) {
+			 var paso = false;
+			 
+			 if (window.XMLHttpRequest) {
+            	  // code for IE7+, Firefox, Chrome, Opera, Safari
+            	  var xmlhttpTR = new XMLHttpRequest();
+        	 } 
+			 else {
+            	  // code for IE6, IE5
+            	  var xmlhttpTR = new ActiveXObject("Microsoft.XMLHTTP");
+        	 }
+
+        	 xmlhttpTR.onreadystatechange = function() {
+             	  if (!paso){
+					 respTR =  this.responseText;
+				  	 valuesTR = respTR.split(";");					
+				  	 //dinamizo la posición de los trenes en tiempo real
+				  	 if (valuesTR.length > 1){
+						paso = true;      
+						for (var i = 0; i < Math.floor((valuesTR.length-1)/colMysql); i++){
+							if ((jlastId == 0) && (jlastIdant == 0)){
+								jlastIdant = parseInt(valuesTR[0 + (colMysql*i)], 10);
+								//mando a graficar
+								comprobarCRC(i);
+							}else{
+								jlastId = parseInt(valuesTR[0 + (colMysql*i)], 10);
+								if ((jlastId == jlastIdant+1)){
+									jlastIdant = jlastId;
+									//mando a graficar
+									comprobarCRC(i);
+								}else{
+									jlastId = jlastIdant;
+								}	
+							}
+						}
+					}
+				  }
+        	 };
+	
+			xmlhttpTR.open("GET", "ats_tr.php?lastId=" + jlastId, true);
+			xmlhttpTR.send();
+    }
+
+	function comprobarCRC(i){
+		var asciiValue, xorValue;
+
+		for (l = 0; l<152; l++){
+			if (parseInt(valuesTR[3 + (colMysql*i)].substring(l,l+1), 16)>9)	asciiValue = '0x' + (parseInt(valuesTR[3 + (colMysql*i)].substring(l,l+1), 16)+31);
+			else	asciiValue = '0x' + (parseInt(valuesTR[3 + (colMysql*i)].substring(l,l+1), 16)+30);
+
+			if (l == 0) xorValue = asciiValue;
+			else xorValue = xorValue^asciiValue;
+		}
+		if (parseInt(valuesTR[3 + (colMysql*i)].substring(152,154), 16) == parseInt(xorValue.toString(16), 16)) 
+			graficar(i);		
+	}
+
+	function graficar(i){
+
+		if (valuesTR[3 + (colMysql*i)] != datosinConexion){
+			if (valuesTR[3+ (colMysql*i)].substring(32, 33) == "0"){
+				var Acel1 = parseInt(valuesTR[3+ (colMysql*i)].substring(32, 36), 16)/100;
+			}else{
+				var Acel1 = (parseInt(valuesTR[3+ (colMysql*i)].substring(32, 36), 16)-65535)/100;
+			}		
+			if (valuesTR[3+ (colMysql*i)].substring(36, 37) == "0"){
+				var Acel2 = parseInt(valuesTR[3+ (colMysql*i)].substring(36, 40), 16)/100;
+			}else{
+				var Acel2 = (parseInt(valuesTR[3+ (colMysql*i)].substring(36, 40), 16)-65535)/100;
+			}		
+
+			var t = ("20" + valuesTR[3+ (colMysql*i)].substring(0, 2) + "-" + valuesTR[3+ (colMysql*i)].substring(2, 4) + "-" + valuesTR[3+ (colMysql*i)].substring(4, 6) + " " + valuesTR[3+ (colMysql*i)].substring(6, 8) + ":" + valuesTR[3+ (colMysql*i)].substring(8, 10) + ":" + valuesTR[3+ (colMysql*i)].substring(10, 12) + "." + valuesTR[3+ (colMysql*i)].substring(13, 14)).split(/[- : .]/);
+			
+			//DATOS PARA CHART
+			datosParaChart = {
+				realSpeed: parseInt(valuesTR[3 + (colMysql*i)].substring(14, 20), 16)/10,
+				compSpeed: parseInt(valuesTR[3+ (colMysql*i)].substring(40, 42), 16),
+				regSpeed: parseInt(valuesTR[3+ (colMysql*i)].substring(42, 44), 16),
+				fbSpeed: parseInt(valuesTR[3+ (colMysql*i)].substring(44, 46), 16),
+				maxSpeed: parseInt(valuesTR[3+ (colMysql*i)].substring(46, 48), 16),
+				Acel1: Acel1,
+				Acel2: Acel2,
+				f98: (parseInt(valuesTR[3+ (colMysql*i)].substring(104, 105), 16) & 8)>>3,
+				f82: (parseInt(valuesTR[3+ (colMysql*i)].substring(104, 105), 16) & 4)>>2,
+				f106: (parseInt(valuesTR[3+ (colMysql*i)].substring(104, 105), 16) & 2)>>1,
+				f90: (parseInt(valuesTR[3+ (colMysql*i)].substring(104, 105), 16) & 1),
+				f114: (parseInt(valuesTR[3+ (colMysql*i)].substring(105, 106), 16) & 8)>>3,
+				f122: (parseInt(valuesTR[3+ (colMysql*i)].substring(105, 106), 16) & 4)>>2,
+				f130: (parseInt(valuesTR[3+ (colMysql*i)].substring(105, 106), 16) & 2)>>1,
+				EMR: (parseInt(valuesTR[3+ (colMysql*i)].substring(105, 106), 16) & 1),
+				FBR: (parseInt(valuesTR[3+ (colMysql*i)].substring(106, 107), 16) & 8)>>3,
+				BFR: (parseInt(valuesTR[3+ (colMysql*i)].substring(106, 107), 16) & 4)>>2,
+				PCCR: (parseInt(valuesTR[3+ (colMysql*i)].substring(106, 107), 16) & 2)>>1,
+				Tracc: (parseInt(valuesTR[3+ (colMysql*i)].substring(106, 107), 16) & 1),
+				Conf: (parseInt(valuesTR[3+ (colMysql*i)].substring(107, 108), 16) & 8)>>3,
+				PosEmer: (parseInt(valuesTR[3+ (colMysql*i)].substring(107, 108), 16) & 4)>>2,
+				FrenoServ: (parseInt(valuesTR[3+ (colMysql*i)].substring(107, 108), 16) & 2)>>1,
+				time: new Date (new Date(t[0], t[1]-1, t[2], t[3], t[4], t[5], 100*t[6])),
+				clear: false				
+			};
+			
+			//DATOS PARA TEXTDATA
+			var arr = (valuesTR[1+ (colMysql*i)] + " " + valuesTR[2+ (colMysql*i)]).split(/[- :]/);
+			textData[0] = new Date((new Date(arr[0], arr[1]-1, arr[2], arr[3], arr[4], arr[5]).getTime())+3600000).toDateString();
+			textData[1] = new Date((new Date(arr[0], arr[1]-1, arr[2], arr[3], arr[4], arr[5]).getTime())+3600000).toTimeString().substring(0, 8);
+			textData[2] = valuesTR[3+ (colMysql*i)].substring(4, 6) + "/" + valuesTR[3+ (colMysql*i)].substring(2, 4) + "/20" + valuesTR[3+ (colMysql*i)].substring(0, 2);
+			textData[3] = valuesTR[3+ (colMysql*i)].substring(6, 8) + ":" + valuesTR[3+ (colMysql*i)].substring(8, 10) + ":" + valuesTR[3+ (colMysql*i)].substring(10, 12) + "." + valuesTR[3+ (colMysql*i)].substring(13, 14);
+			textData[4] = String(parseInt(valuesTR[3+ (colMysql*i)].substring(20, 28), 16)/10000) + " km";
+			textData[5] = String(datosParaChart.realSpeed) + " km/h";
+			textData[6] = String(datosParaChart.compSpeed) + " km/h";
+			textData[7] = String(datosParaChart.regSpeed) + " km/h";
+			textData[8] = String(datosParaChart.fbSpeed) + " km/h";
+			textData[9] = String(datosParaChart.maxSpeed) + " km/h";
+			textData[10] = String(datosParaChart.Acel1) + " km/h/s";
+			textData[11] = String(datosParaChart.Acel2) + " km/h/s";
+			textData[12] = valuesTR[3+ (colMysql*i)].substring(88, 92) + " mm";
+			textData[13] = valuesTR[3+ (colMysql*i)].substring(80, 82);
+			textData[14] = valuesTR[3+ (colMysql*i)].substring(82, 84);
+			textData[15] = valuesTR[3+ (colMysql*i)].substring(84, 86).toUpperCase();
+			textData[16] = valuesTR[3+ (colMysql*i)].substring(86, 88).toUpperCase();
+			textData[17] = "-";
+			textData[18] = String(parseInt(valuesTR[3+ (colMysql*i)].substring(28, 32), 16)/10) + " m";
+			if (valuesTR[3+ (colMysql*i)].substring(72, 74) != "00"){
+				textData[19] = String(parseInt(valuesTR[3+ (colMysql*i)].substring(72, 74), 16)) + " kHz";
+			}
+			if (valuesTR[3+ (colMysql*i)].substring(74, 76) != "00"){
+				textData[20] = String(parseInt(valuesTR[3+ (colMysql*i)].substring(74, 76), 16));
+			}
+			if (valuesTR[3+ (colMysql*i)].substring(76, 80) != "8000"){
+				textData[21] = String((parseInt(valuesTR[3+ (colMysql*i)].substring(76, 80), 16) - parseInt(valuesTR[3+ (colMysql*i)].substring(76, 78)+"ff", 16) )/10) + " dBv";
+			}
+			
+			//DATOS PARA BITS
+			bitData[0] = datosParaChart.EMR;
+			bitData[1] = datosParaChart.FBR;
+			bitData[2] = datosParaChart.BFR;
+			bitData[3] = datosParaChart.PCCR;
+			
+			bitData[4] = datosParaChart.Tracc;
+			bitData[5] = datosParaChart.Conf;
+			bitData[6] = datosParaChart.PosEmer;
+			bitData[7] = datosParaChart.FrenoServ;
+			
+			bitData[8] = (parseInt(valuesTR[3+ (colMysql*i)].substring(108, 109), 16) & 8)>>3;
+			bitData[9] = (parseInt(valuesTR[3+ (colMysql*i)].substring(108, 109), 16) & 4)>>2;
+			bitData[10] = (parseInt(valuesTR[3+ (colMysql*i)].substring(108, 109), 16) & 2)>>1;
+			bitData[11] = (parseInt(valuesTR[3+ (colMysql*i)].substring(108, 109), 16) & 1);
+			bitData[12] = (parseInt(valuesTR[3+ (colMysql*i)].substring(109, 110), 16) & 8)>>3;
+			bitData[13] = (parseInt(valuesTR[3+ (colMysql*i)].substring(109, 110), 16) & 4)>>2;
+			bitData[14] = (parseInt(valuesTR[3+ (colMysql*i)].substring(109, 110), 16) & 2)>>1;
+			bitData[15] = (parseInt(valuesTR[3+ (colMysql*i)].substring(110, 111), 16) & 4)>>2;
+			bitData[16] = (parseInt(valuesTR[3+ (colMysql*i)].substring(110, 111), 16) & 1);
+			bitData[17] = (parseInt(valuesTR[3+ (colMysql*i)].substring(111, 112), 16) & 8)>>3;
+			bitData[18] = (parseInt(valuesTR[3+ (colMysql*i)].substring(111, 112), 16) & 4)>>2;
+			bitData[19] = (parseInt(valuesTR[3+ (colMysql*i)].substring(111, 112), 16) & 2)>>1;
+			bitData[20] = (parseInt(valuesTR[3+ (colMysql*i)].substring(111, 112), 16) & 1);
+
+			bitData[21] = (parseInt(valuesTR[3+ (colMysql*i)].substring(110, 111), 16) & 2)>>1; //Cont Falla Vel
+			bitData[22] = (parseInt(valuesTR[3+ (colMysql*i)].substring(109, 110), 16) & 1); //Desconexión Bobina
+			bitData[23] = (parseInt(valuesTR[3+ (colMysql*i)].substring(110, 111), 16) & 8)>>3; //Acop TG Roto
+			bitData[25] = (parseInt(valuesTR[3+ (colMysql*i)].substring(115, 116), 16) & 8)>>3; //END2
+			bitData[24] = (parseInt(valuesTR[3+ (colMysql*i)].substring(115, 116), 16) & 4)>>2; //END1
+			bitData[27] = (parseInt(valuesTR[3+ (colMysql*i)].substring(115, 116), 16) & 2)>>1; //vía de playa
+			bitData[26] = (parseInt(valuesTR[3+ (colMysql*i)].substring(115, 116), 16) & 1); //Vía principal
+
+			viaPlaya = bitData[27];
+			end1 = bitData[24];
+			end2 = bitData[25];
+
+			//DATOS PARA DISPLAY
+			var atsNormal, retroceso, aplicaAts, viaPlaya, end1, end2, corteTrac;
+			var segU, segD, segC;
+			var v0, v15, v25, v45, v60, v70, v80, v90, v120;
+
+			v0 = (parseInt(valuesTR[3+ (colMysql*i)].substring(122, 123), 16) & 8)>>3; 
+			v15 = (parseInt(valuesTR[3+ (colMysql*i)].substring(122, 123), 16) & 4)>>2; 
+			v45 = (parseInt(valuesTR[3+ (colMysql*i)].substring(122, 123), 16) & 2)>>1;
+			v60 = (parseInt(valuesTR[3+ (colMysql*i)].substring(122, 123), 16) & 1);
+			v70 = (parseInt(valuesTR[3+ (colMysql*i)].substring(123, 124), 16) & 8)>>3;
+			v80 = (parseInt(valuesTR[3+ (colMysql*i)].substring(123, 124), 16) & 4)>>2;
+			v90 = (parseInt(valuesTR[3+ (colMysql*i)].substring(123, 124), 16) & 2)>>1;
+			v120 = (parseInt(valuesTR[3+ (colMysql*i)].substring(123, 124), 16) & 1);
+			v25 = (parseInt(valuesTR[3+ (colMysql*i)].substring(125, 126), 16) & 1);
+
+			//asigno estados
+			corteTrac = (parseInt(valuesTR[3+ (colMysql*i)].substring(121, 122), 16) & 8)>>3;
+			retroceso = (parseInt(valuesTR[3+ (colMysql*i)].substring(121, 122), 16) & 4)>>2;
+			
+			if (valuesTR[3+ (colMysql*i)].substring(84, 86) == "00") atsNormal = 1;
+			else atsNormal = 0;
+						
+			if ((datosParaChart.EMR == 0) || (datosParaChart.FBR == 0)) aplicaAts = 1;
+			else aplicaAts = 0;
+			
+			if (v0 == 1){
+				segC = -1;
+				segD = -1;
+				segU = 0;					
+			}else{
+				if (v15 == 1){
+					segC = -1;
+					segD = 1;
+					segU = 5;					
+				}else{
+					if (v25 == 1){
+						segC = -1;
+						segD = 2;
+						segU = 5;					
+					}else{
+						if (v45 == 1){
+							segC = -1;
+							segD = 4;
+							segU = 5;					
+						}else{
+							if (v60 == 1){
+								segC = -1;
+								segD = 6;
+								segU = 0;					
+							}else{
+								if (v70 == 1){
+									segC = -1;
+									segD = 7;
+									segU = 0;					
+								}else{
+									if (v80 == 1){
+										segC = -1;
+										segD = 8;
+										segU = 0;					
+									}else{
+										if (v90 == 1){
+											segC = -1;
+											segD = 9;
+											segU = 0;					
+										}else{
+											if (v120 == 1){
+												segC = 1;
+												segD = 2;
+												segU = 0;					
+											}else{
+												segC = -2;
+												segD = -2;
+												segU = -2;					
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			dataDspl = {   
+					   light1 : end1, 
+                       light2 : end2, 
+                       light3 : corteTrac, 
+                       light4 : atsNormal, 
+                       light5 : retroceso, 
+                       light6 : aplicaAts,
+                       light7 : viaPlaya,
+                       velC : segC, 
+                       velD : segD, 
+					   velU : segU
+			};			
+
+			// DATOS PARA TARBLA DE EVENTOS
+			if ((datosParaChart.EMR == 0) || (datosParaChart.FBR == 0) || (datosParaChart.PCCR == 1)){
+				if ((datosParaChart.EMR != bitEVant)||(datosParaChart.FBR != bitFBant)||(datosParaChart.PCCR != bitTCant)){
+					var descrip = "";
+					var tipo ;
+					var accion = "";
+					var h = textData[1];
+					var f = textData[0];
+					var hats = textData[3];
+					var fats = textData[2];
+					var color;
+					if (textData[15] == "00"){
+					//EXISTE EVENTO
+						switch (valuesTR[3+ (colMysql*i)].substring(86, 87)){
+							case "3":
+								descrip = descrip + " - Freno de servicio aplicado por exceso de velocidad - Corte de tracción aplicado";
+								tipo = "Evento";
+								color = 'red';
+								break;
+
+							case "4":
+								descrip = descrip + " - Freno de servicio aplicado por exceso de velocidad";
+								tipo = "Evento";
+								color = 'red';
+								break;
+
+							case "5":
+								descrip = descrip + " - Freno de emergencia aplicado por exceso de velocidad";
+								tipo = "Evento";
+								color = 'red';
+								break;
+
+							case "6":
+								descrip = descrip + " - Freno de emergencia aplicado por lectura de señal de parada absoluta";
+								tipo = "Evento";
+								color = 'red';
+								break;
+
+							case "7":
+								descrip = descrip + " - Freno de emergencia aplicado por detección de retroceso";
+								tipo = "Evento";
+								color = 'red';
+								break;
+
+							case "8":
+								descrip = descrip + " - Freno de emergencia aplicado por desconexión de eje 3";
+								tipo = "Evento";
+								color = 'red';
+								break;
+
+							case "a":
+								descrip = descrip + " - Corte de tracción aplicado";
+								tipo = "Evento";
+								color = 'red';
+								break;
+
+							case "f":
+								descrip = descrip + " - Habilitación para trasposición de señal a peligro";
+								tipo = "Modo";
+								color = 'yellow';
+								break;							
+						}
+						switch (valuesTR[3+ (colMysql*i)].substring(87, 88)){
+							case "0":
+								descrip = descrip + " - Sin recepción de señal"
+								break;
+
+							case "1":
+								descrip = descrip + " - Recepción de señal de 98kHz"
+								break;
+
+							case "2":
+								descrip = descrip + " - Recepción de señal de 106kHz"
+								break;
+
+							case "3":
+								descrip = descrip + " - Recepción de señal de 114kHz"
+								break;
+
+							case "4":
+								descrip = descrip + " - Recepción de señal de 122kHz"
+								break;
+
+							case "6":
+								descrip = descrip + " - Recepción de señal de 130kHz"
+								break;
+
+							case "7":
+								descrip = descrip + " - Recepción de señal de 82kHz"
+								break;
+
+							case "8":
+								descrip = descrip + " - Recepción de señal de 90kHz"
+								break;
+
+							case "f":
+								descrip = descrip + " - Recepción de dos señales somultaneas"
+								tipo = "Evento";
+								color = 'red';
+								break;
+						}
+					}
+					else{
+					//FALLA
+						switch (textData[15]){
+							case (("10")||("11")||("12")||("13")||("14")||("16")||("17")||("18")||("19")||("1f")||("20")||("21")||("22")||("23")||("25")||("26")||("27")||("28")||("29")||("2a")||("2b")||("2f")||("30")||("31")||("32")||("33")||("40")):
+								descrip = descrip + " - Falla en el diagnóstico del sistema (OS) - Falla del receptor de ATS";
+								accion = "Reemplace el receptor de ATS";
+								tipo = "Falla"
+								color = 'red';
+								break;
+							case(("80")||("81")||("82")||("83")||("84")||("85")||("86")||("87")||("88")||("89")||("8d")||("8e")||("8f")):
+								descrip = descrip + " - Falla en la tarjeta AIO - No funciona la tarjeta AIO";
+								accion = "Reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case(("90")||("91")||("92")):
+								descrip = descrip + " - Falla en la tarjeta ATG - No funciona la tarjeta ATG";
+								accion = "Reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case ("93"):
+								descrip = descrip + " - Tarjeta ATG: Mala configuración del diámetro de rueda";
+								accion = "Verifique el valor establecido en la llave de configuración del diámetro de rueda. El rango válido es de 600mm a 1100mm. Si está bien configurado, reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case ("94"):
+								descrip = descrip + " - Tarjeta ATG: Falla en el contador de velocidad TG11 y TG12";
+								accion = "Puede ser una falla en el tacogenerador. Verifique el conexionado hasta el tacogenerador. Si el cableado está bien, reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case ("95"):
+								descrip = descrip + " - Tarjeta ATG:  Rotura de la horquilla TG11 y TG21";
+								accion = "Puede ser una falla en el tacogenerador. Verifique el conexionado hasta el tacogenerador. Si el cableado está bien, reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case ("96"):
+								descrip = descrip + " - Tarjeta ATG:  Falla en el circuito de determinación del desfasaje";
+								accion = "Puede ser una falla en el tacogenerador. Verifique el conexionado hasta el tacogenerador. Si el cableado está bien, reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case ("97"):
+								descrip = descrip + " - Tarjeta ATG: Detección de desconexión (Falla Eje 3)";
+								accion = "Puede ser una falla en el tacogenerador. Verifique el conexionado hasta el tacogenerador. Si el cableado está bien, reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case (("9d")||("9e")||("9f")):
+								descrip = descrip + " - Falla en la tarjeta ATG";
+								accion = "No funciona la tarjeta ATG. Reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case (("a0")||("a1")||("ad")||("ae")||("af")):
+								descrip = descrip + " - Falla en la tarjeta ALOG2";
+								accion = "No funciona la tarjeta ALOG2. Reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case (("d0")||("d1")||("d2")||("dd")||("de")||("df")):
+								descrip = descrip + " - Falla en la tarjeta OSC";
+								accion = "No funciona la tarjeta OSC. Reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case (("e0")||("e1")):
+								descrip = descrip + " - Desconexión de la bobina de abordo, lado transmisor.・Desconexión de la bobina primaria de la bobina de abordo ・Desconexión o corte del hilo blanco o rojo del cable de la bobina de abordo";
+								accion = "Verifique el cableado y conexión del lado transmisor de la bobina de abordo. Verifique si los conectores no están flojos. Si está todo bien, reemplace el receptor de ATS o la bobina de abordo";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case (("e2")||("e3")):
+								descrip = descrip + " - Desconexión de la bobina de abordo, lado receptor.・Desconexión de la bobina secundaria de la bobina de abordo・Desconexión o corte del hilo verde o negro del cable de la bobina de abordo";
+								accion = "Verifique el cableado y conexión del lado receptor de la bobina de abordo. Verifique si los conectores no están flojos. Si está todo bien, reemplace el receptor de ATS o la bobina de abordo";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case ("e4"):
+								descrip = descrip + " - Entrada anormal del tipo (Type) de receptor de ATS";
+								accion = "Verifique el estado de la condición 'TypeB' del material rodante. Si está todo bien, reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case ("e5"):
+								descrip = descrip + " - Combinación anormal de las condiciones de selección de velocidad.";
+								accion = "Verifique el estado de la condición 'Condición de selección de velocidad 120km/h' o la 'Condición de selección de velocidad 90km/h'. Si todo está bien, reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case (("e6")||("e7")||("e9")||("ea")||("eb")):
+								descrip = descrip + " - Falla en la realimentación de la salida del relé";
+								accion = "No funciona la tarjeta AIO o la tarjeta RY. Reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case (("ec")||("ed")):
+								descrip = descrip + " - Falla en la combinación de la entrada de las condiciones del material rodante"
+								accion = "Verifique el estado de las condiciones del material rodante 'Vía Principal', 'Vía de Playa', 'Marcha adelante', 'Marcha atrás'. Si todo está bien, reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case ("ef"):
+								descrip = descrip + " - Falla en la combinación de la condición END";
+								accion = "Verifique el estado de las condiciones del material rodante '1END' y '2END'. Si todo está bien, reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case (("f1")||("f2")||("f3")||("f4")||("f5")||("f6")):
+								descrip = descrip + " - Falla en el diagnóstico del sistema (aplicación)";
+								accion = "Falla del receptor de ATS.Reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case (("f8")||("f9")||("fa")||("fb")||("fc")||("fd")):
+								descrip = descrip + " - Falla en la verificación del nivel de la señal de transmisión y recepción";
+								accion = "Verifique el acoplamiento de la bobina de abordo. Verifique si no hay elementos extraños sobre la bobina de abordo. Verifique si el cable de la bobina de abordo tiene falsos contactos o cortocircuitos. Verifique si el CN2 del receptor de ATS está bien enchufado. Si está todo bien, reemplace el receptor de ATS o la bobina de abordo";
+								tipo = "Falla";
+								color = 'red';
+								break;
+							case (("fe")||("ff")):
+								descrip = descrip + " - Falla en el diagnóstico del sistema (aplicación)";
+								accion = "Falla del receptor de ATS. Reemplace el receptor de ATS";
+								tipo = "Falla";
+								color = 'red';
+								break;
+						}
+					}
+					var Evento = {
+							dato: [tipo, f, h, fats, hats, descrip, accion],
+							color: color
+						};
+					dataTables.data (Evento);
+				}
+			}
+			if ((viaPlaya == 1)&&(end1 == 1)&&((viaPlayaAnt == 0)||(viaPlayaAnt == -1))){
+				var descrip = " - Activación del modo 'Vía de Playa' en END1";
+				var tipo = "Modo";
+				var accion = "";
+				var h = textData[1];
+				var f = textData[0];
+				var hats = textData[3];
+				var fats = textData[2];
+				var color = 'yellow';
+
+				var Evento = {
+							dato: [tipo, f, h, fats, hats, descrip, accion],
+							color: color
+					};
+				dataTables.data (Evento);
+
+			}
+
+			if ((viaPlaya == 1)&&(end2 == 1)&&((viaPlayaAnt == 0)||(viaPlayaAnt == -1))){
+				var descrip = " - Activación del modo 'Vía de Playa' en END2";
+				var tipo = "Modo";
+				var accion = "";
+				var h = textData[1];
+				var f = textData[0];
+				var hats = textData[3];
+				var fats = textData[2];
+				var color = 'yellow';
+
+				var Evento = {
+							dato: [tipo, f, h, fats, hats, descrip, accion],
+							color: color
+					};
+				dataTables.data (Evento);
+
+			}
+			//NO HAY EVENTO
+			bitEVant = datosParaChart.EMR;
+			bitFBant = datosParaChart.FBR;
+			bitTCant = datosParaChart.PCCR;
+			viaPlayaAnt = viaPlaya;
+		}else{
+			datosParaChart = {
+				realSpeed: -1,
+				compSpeed: -1,
+				regSpeed: -1,
+				fbSpeed: -1,
+				maxSpeed: -1,
+				Acel1: -25,
+				Acel2: -25,
+				f98: -1,
+				f82: -1,
+				f106: -1,
+				f90: -1,
+				f114: -1,
+				f122: -1,
+				f130: -1,
+				EMR: -1,
+				FBR: -1,
+				BFR: -1,
+				PCCR: -1,
+				Tracc: -1,
+				Conf: -1,
+				PosEmer: -1,
+				FrenoServ: -1,
+				time: -1,
+				clear: true
+			};
+			var arr = (valuesTR[1+ (colMysql*i)] + " " + valuesTR[2+ (colMysql*i)]).split(/[- :]/);
+			var d = new Date((new Date(arr[0], arr[1]-1, arr[2], arr[3], arr[4], arr[5]).getTime())+3600000).toDateString();
+			var h = new Date((new Date(arr[0], arr[1]-1, arr[2], arr[3], arr[4], arr[5]).getTime())+3600000).toTimeString().substring(0, 8);
+
+			textData = [d,h,'-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-','-'];					   
+			bitData = [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1];
+			obtenerInfoTren();
+
+			dataDspl = {   
+					   light1 : 0, 
+                       light2 : 0, 
+                       light3 : 0, 
+                       light4 : 0, 
+                       light5 : 0, 
+                       light6 : 0,
+                       light7 : 0,
+                       velC : -1, 
+                       velD : -1, 
+					   velU : -1
+			};
+			
+			var descrip = " - Sin comunicación con el ATS. Posible apagado del sistema";
+			var tipo = "Modo";
+			var accion = "Verificar si el ATS se encuentra apagado. En caso de estar encendido, verifique la conexión con el módulo de recepción";
+			var h = textData[1];
+			var f = textData[0];
+			var hats = "";
+			var fats = "";
+			var color = 'yellow';
+
+			var Evento = {
+							dato: [tipo, f, h, fats, hats, descrip, accion],
+							color: color
+				};
+			dataTables.data (Evento);
+
+			bitEVant = 1; 
+			bitFBant = 1; 
+			bitTCant = 0; 
+			viaPlayaAnt = -1;
+		}
+		
+		chart.datum(datosParaChart);
+		dataBits.dataText(textData);
+		dataBits.dataBit(bitData);
+		dspl.data(dataDspl);
+		
+		//actualizo gauge
+		gaugeValue = parseFloat(datosParaChart.realSpeed);
+		updateSpeedometer(datosParaChart.compSpeed, datosParaChart.regSpeed, datosParaChart.fbSpeed, datosParaChart.maxSpeed, datosParaChart.PCCR, textData[15]);
+	}
+
+  </script>
+  </body>
+</html>
